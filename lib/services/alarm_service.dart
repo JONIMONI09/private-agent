@@ -1,5 +1,19 @@
 import 'package:android_intent_plus/android_intent.dart';
 
+class AlarmFailedException implements Exception {
+  final String message;
+  AlarmFailedException(this.message);
+  @override
+  String toString() => 'AlarmFailedException: $message';
+}
+
+class TimerFailedException implements Exception {
+  final String message;
+  TimerFailedException(this.message);
+  @override
+  String toString() => 'TimerFailedException: $message';
+}
+
 class AlarmService {
   /// Set an alarm using Android's built-in alarm intent
   Future<String> setAlarm({
@@ -22,7 +36,7 @@ class AlarmService {
           '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
       return 'Alarm set for $timeStr${label != null ? ' ($label)' : ''}';
     } catch (e) {
-      return 'Error setting alarm: $e';
+      throw AlarmFailedException('Error setting alarm: $e');
     }
   }
 
@@ -45,7 +59,7 @@ class AlarmService {
       final secs = seconds % 60;
       return 'Timer set for ${minutes}m ${secs}s${label != null ? ' ($label)' : ''}';
     } catch (e) {
-      return 'Error setting timer: $e';
+      throw TimerFailedException('Error setting timer: $e');
     }
   }
 }

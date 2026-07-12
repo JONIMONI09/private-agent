@@ -17,6 +17,14 @@ class AgentAction {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'action': action,
+      'params': params,
+      'response': response,
+    };
+  }
+
   static const List<String> availableActions = [
     'open_app',
     'make_call',
@@ -29,5 +37,14 @@ class AgentAction {
     'read_screen',
     'run_adb_command',
     'general_query',
+    'execute_task',
+    'click_element',
+    'type_on_screen',
+    'scroll_screen',
+    'press_back',
+    'set_timer',
+    'send_email',
+    'open_url',
+    'mcp_tool_call',
   ];
 }

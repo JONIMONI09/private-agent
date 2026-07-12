@@ -43,3 +43,26 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Flutter SDK
+/flutter_sdk/
+
+# Secrets and local configurations
+*.keystore
+*.jks
+*.p12
+*.pem
+key.properties
+.env
+.env.*
+
+# AI Audit reports & temp documentations
+bug_documentation.md
+audit_report.md
+
+# Binaries and large files
+*.zip
+*.exe
+*.msi
+*.apk
+*.aab

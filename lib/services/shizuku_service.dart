@@ -1,5 +1,26 @@
 import 'package:shizuku_api/shizuku_api.dart';
 
+class ShizukuNotRunningException implements Exception {
+  final String message;
+  ShizukuNotRunningException(this.message);
+  @override
+  String toString() => 'ShizukuNotRunningException: $message';
+}
+
+class ShizukuPermissionException implements Exception {
+  final String message;
+  ShizukuPermissionException(this.message);
+  @override
+  String toString() => 'ShizukuPermissionException: $message';
+}
+
+class AdbCommandException implements Exception {
+  final String message;
+  AdbCommandException(this.message);
+  @override
+  String toString() => 'AdbCommandException: $message';
+}
+
 class ShizukuService {
   final ShizukuApi _shizuku = ShizukuApi();
   bool _isAvailable = false;
@@ -34,15 +55,24 @@ class ShizukuService {
     }
   }
 
+  bool _isSafeCommand(String command) {
+    // Block shell metacharacters used for command injection
+    final dangerousChars = RegExp(r'[;&|`$><]');
+    return !dangerousChars.hasMatch(command);
+  }
+
   /// Run an ADB shell command via Shizuku
   Future<String> runCommand(String command) async {
+    if (!_isSafeCommand(command)) {
+      throw AdbCommandException('Security Alert: Command contains forbidden shell characters.');
+    }
     if (!_isAvailable) {
-      return 'Shizuku is not running. Please start Shizuku first.';
+      throw ShizukuNotRunningException('Shizuku is not running. Please start Shizuku first.');
     }
     if (!_hasPermission) {
       final granted = await requestPermission();
       if (!granted) {
-        return 'Shizuku permission denied.';
+        throw ShizukuPermissionException('Shizuku permission denied.');
       }
     }
 
@@ -50,7 +80,7 @@ class ShizukuService {
       final result = await _shizuku.runCommand(command);
       return result ?? 'Command executed (no output)';
     } catch (e) {
-      return 'Error running command: $e';
+      throw AdbCommandException('Error running command: $e');
     }
   }
 
@@ -66,13 +96,23 @@ class ShizukuService {
     );
   }
 
+  bool _isValidPackageName(String packageName) {
+    return RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(packageName);
+  }
+
   /// Force stop an app
   Future<String> forceStopApp(String packageName) async {
+    if (!_isValidPackageName(packageName)) {
+      throw AdbCommandException('Invalid package name format.');
+    }
     return runCommand('am force-stop $packageName');
   }
 
   /// Clear app data
   Future<String> clearAppData(String packageName) async {
+    if (!_isValidPackageName(packageName)) {
+      throw AdbCommandException('Invalid package name format.');
+    }
     return runCommand('pm clear $packageName');
   }
 }

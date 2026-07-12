@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/agent_action.dart';
 import '../models/chat_message.dart';
+import '../models/plan_step.dart';
 import 'app_launcher_service.dart';
 import 'contacts_service.dart';
 import 'communication_service.dart';
@@ -10,6 +13,13 @@ import 'screen_automation_service.dart';
 import 'task_executor.dart';
 import 'ai_service.dart';
 
+class McpToolCallException implements Exception {
+  final String message;
+  McpToolCallException(this.message);
+  @override
+  String toString() => 'McpToolCallException: $message';
+}
+
 class ActionHandler {
   final AppLauncherService _appLauncher = AppLauncherService();
   final ContactsService _contacts = ContactsService();
@@ -19,16 +29,59 @@ class ActionHandler {
   final ShizukuService _shizuku = ShizukuService();
   final ScreenAutomationService _screenAutomation = ScreenAutomationService();
 
+  TaskExecutor? _currentExecutor;
+
   ShizukuService get shizuku => _shizuku;
   ScreenAutomationService get screenAutomation => _screenAutomation;
+
+  void cancelCurrentTask() {
+    _currentExecutor?.cancel();
+  }
 
   /// Execute an action and return the result
   Future<AgentActionResult> execute(
     AgentAction action, {
     AiService? aiService,
     void Function(String)? onProgress,
+    void Function(String, {int? stepIndex, PlanStepStatus? status})? onStepProgress,
+    Future<bool> Function(Map<String, dynamic> action)? onConfirmAction,
   }) async {
     try {
+      if (aiService != null &&
+          !aiService.yoloMode &&
+          onConfirmAction != null &&
+          action.action != 'general_query' &&
+          action.action != 'execute_task') {
+        final approved = await onConfirmAction({
+          'action': action.action,
+          'params': action.params,
+          'reasoning': action.response,
+        });
+        if (!approved) {
+          return AgentActionResult(
+            actionType: action.action,
+            success: false,
+            details: 'Execution canceled by user.',
+          );
+        }
+      }
+
+      // Check if the current foreground package is blocked for screen automation actions
+      final screenActions = {
+        'read_screen',
+        'click_element',
+        'type_on_screen',
+        'scroll_screen',
+        'press_back',
+      };
+      if (screenActions.contains(action.action)) {
+        final pkg = await _screenAutomation.getCurrentPackage();
+        final blocked = await _appLauncher.getBlockedApps();
+        if (pkg != null && blocked.contains(pkg)) {
+          throw AppBlockedException('The active foreground application "$pkg" is blocked by security permissions.');
+        }
+      }
+
       String result;
 
       switch (action.action) {
@@ -84,6 +137,11 @@ class ActionHandler {
           result = await _systemControl.setBrightness(
             (action.params['level'] as num?)?.toInt() ?? 50,
           );
+          break;
+
+        case 'read_notifications':
+          final success = await _screenAutomation.openNotifications();
+          result = success ? 'Opened notifications panel. Use read_screen to read them.' : 'Failed to open notifications panel.';
           break;
 
         case 'run_adb_command':
@@ -149,8 +207,47 @@ class ActionHandler {
             screenService: _screenAutomation,
             appLauncher: _appLauncher,
             onProgress: onProgress,
+            onStepProgress: onStepProgress,
+            onConfirmAction: onConfirmAction,
           );
-          result = await executor.executeTask(goal);
+          _currentExecutor = executor;
+          try {
+            result = await executor.executeTask(goal);
+          } finally {
+            _currentExecutor = null;
+          }
+          break;
+
+        case 'mcp_tool_call':
+          if (aiService == null || !aiService.mcpEnabled) {
+            throw McpToolCallException('MCP is not enabled or AI service is unavailable.');
+          }
+          final mcpUrl = aiService.mcpUrl;
+          final serverName = action.params['server_name'] as String? ?? 'mcp';
+          final toolName = action.params['tool_name'] as String? ?? '';
+          final arguments = action.params['arguments'] ?? {};
+          
+          try {
+            final url = mcpUrl.endsWith('/') ? '${mcpUrl}tools/execute' : '$mcpUrl/tools/execute';
+            final response = await http.post(
+              Uri.parse(url),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'server_name': serverName,
+                'tool_name': toolName,
+                'arguments': arguments,
+              }),
+            ).timeout(const Duration(seconds: 15));
+            
+            if (response.statusCode == 200) {
+              final data = jsonDecode(response.body);
+              result = data['result']?.toString() ?? 'Executed $toolName successfully.';
+            } else {
+              throw McpToolCallException('MCP Error (${response.statusCode}): ${response.body}');
+            }
+          } catch (e) {
+            throw McpToolCallException('Failed to execute MCP tool: $e');
+          }
           break;
 
         default:
@@ -161,6 +258,102 @@ class ActionHandler {
         actionType: action.action,
         success: true,
         details: result,
+      );
+    } on AppBlockedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on AppNotFoundException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on AccessibilityServiceException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on AppLaunchException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on UrlOpenException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on ContactNotFoundException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on CallFailedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on SmsFailedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on EmailFailedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on AlarmFailedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on TimerFailedException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on SystemControlException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on ShizukuNotRunningException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on ShizukuPermissionException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on AdbCommandException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
+      );
+    } on McpToolCallException catch (e) {
+      return AgentActionResult(
+        actionType: action.action,
+        success: false,
+        details: 'Error: $e',
       );
     } catch (e) {
       return AgentActionResult(

@@ -1,0 +1,10 @@
+{
+    "dart.flutterSdkPath": "D:\\private-agent\\flutter_sdk\\flutter",
+    "dart.sdkPath": "D:\\private-agent\\flutter_sdk\\flutter\\bin\\cache\\dart-sdk",
+    "terminal.integrated.env.windows": {
+        "ANDROID_HOME": "D:\\Android\\sdk",
+        "ANDROID_SDK_ROOT": "D:\\Android\\sdk",
+        "FLUTTER_ROOT": "D:\\private-agent\\flutter_sdk\\flutter",
+        "JAVA_HOME": "D:\\studio neu\\jbr"
+    }
+}

@@ -1,6 +1,28 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'contacts_service.dart';
 
+
+class CallFailedException implements Exception {
+  final String message;
+  CallFailedException(this.message);
+  @override
+  String toString() => 'CallFailedException: $message';
+}
+
+class SmsFailedException implements Exception {
+  final String message;
+  SmsFailedException(this.message);
+  @override
+  String toString() => 'SmsFailedException: $message';
+}
+
+class EmailFailedException implements Exception {
+  final String message;
+  EmailFailedException(this.message);
+  @override
+  String toString() => 'EmailFailedException: $message';
+}
+
 class CommunicationService {
   final ContactsService _contactsService = ContactsService();
 
@@ -12,12 +34,12 @@ class CommunicationService {
     if (contactName != null && number == null) {
       number = await _contactsService.getPhoneNumber(contactName);
       if (number == null) {
-        return 'Could not find contact "$contactName". Try searching contacts first.';
+        throw ContactNotFoundException('Could not find contact "$contactName". Try searching contacts first.');
       }
     }
 
     if (number == null || number.isEmpty) {
-      return 'No phone number provided.';
+      throw CallFailedException('No phone number provided.');
     }
 
     try {
@@ -26,9 +48,10 @@ class CommunicationService {
         await launchUrl(uri);
         return 'Calling $number${contactName != null ? ' ($contactName)' : ''}...';
       }
-      return 'Cannot make calls on this device.';
+      throw CallFailedException('Cannot make calls on this device.');
     } catch (e) {
-      return 'Error making call: $e';
+      if (e is CallFailedException || e is ContactNotFoundException) rethrow;
+      throw CallFailedException('Error making call: $e');
     }
   }
 
@@ -43,12 +66,12 @@ class CommunicationService {
     if (contactName != null && number == null) {
       number = await _contactsService.getPhoneNumber(contactName);
       if (number == null) {
-        return 'Could not find contact "$contactName".';
+        throw ContactNotFoundException('Could not find contact "$contactName".');
       }
     }
 
     if (number == null || number.isEmpty) {
-      return 'No phone number provided.';
+      throw SmsFailedException('No phone number provided.');
     }
 
     try {
@@ -61,9 +84,10 @@ class CommunicationService {
         await launchUrl(uri);
         return 'Opening SMS to $number${contactName != null ? ' ($contactName)' : ''} with message: "$message"';
       }
-      return 'Cannot send SMS on this device.';
+      throw SmsFailedException('Cannot send SMS on this device.');
     } catch (e) {
-      return 'Error sending SMS: $e';
+      if (e is SmsFailedException || e is ContactNotFoundException) rethrow;
+      throw SmsFailedException('Error sending SMS: $e');
     }
   }
 
@@ -86,9 +110,10 @@ class CommunicationService {
         await launchUrl(uri);
         return 'Opening email to $to';
       }
-      return 'Cannot send email on this device.';
+      throw EmailFailedException('Cannot send email on this device.');
     } catch (e) {
-      return 'Error sending email: $e';
+      if (e is EmailFailedException) rethrow;
+      throw EmailFailedException('Error sending email: $e');
     }
   }
 }

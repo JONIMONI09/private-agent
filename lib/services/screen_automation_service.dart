@@ -61,7 +61,7 @@ class ScreenAutomationService {
       final index = node['index'];
       final text = node['text'] ?? '';
       final desc = node['contentDescription'] ?? '';
-      final className = node['className'] ?? '';
+      var className = node['className'] as String? ?? '';
       final isClickable = node['isClickable'] == true;
       final isEditable = node['isEditable'] == true;
       final isScrollable = node['isScrollable'] == true;
@@ -69,6 +69,11 @@ class ScreenAutomationService {
       final displayText = text.isNotEmpty ? text : desc;
       if (displayText.isEmpty && !isClickable && !isEditable && !isScrollable) {
         continue; // Skip empty non-interactive nodes
+      }
+
+      // Simplify full Java package names to save characters/tokens
+      if (className.contains('.')) {
+        className = className.split('.').last;
       }
 
       final tags = <String>[];
@@ -81,11 +86,16 @@ class ScreenAutomationService {
       final tagStr = tags.isNotEmpty ? '{${tags.join(", ")}}' : '';
       
       String boundsStr = '';
-      if (node['bounds'] != null) {
-        final b = node['bounds'];
-        final centerX = (b['left'] + b['right']) / 2;
-        final centerY = (b['top'] + b['bottom']) / 2;
-        boundsStr = ' bounds:[${b['left']},${b['top']},${b['right']},${b['bottom']}] center:(${centerX.round()},${centerY.round()})';
+      if (node['bounds'] is Map) {
+        final b = node['bounds'] as Map;
+        final left = b['left'] is num ? (b['left'] as num).toDouble() : 0.0;
+        final right = b['right'] is num ? (b['right'] as num).toDouble() : 0.0;
+        final top = b['top'] is num ? (b['top'] as num).toDouble() : 0.0;
+        final bottom = b['bottom'] is num ? (b['bottom'] as num).toDouble() : 0.0;
+        final centerX = (left + right) / 2;
+        final centerY = (top + bottom) / 2;
+        // Output center coordinates only to reduce redundancy and simplify coordinates for AI
+        boundsStr = ' center:(${centerX.round()},${centerY.round()})';
       }
 
       buffer.writeln('  [$index] $type $label $tagStr$boundsStr');

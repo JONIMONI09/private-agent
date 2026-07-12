@@ -1,10 +1,24 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 
+class PermissionDeniedException implements Exception {
+  final String message;
+  PermissionDeniedException(this.message);
+  @override
+  String toString() => 'PermissionDeniedException: $message';
+}
+
+class ContactNotFoundException implements Exception {
+  final String message;
+  ContactNotFoundException(this.message);
+  @override
+  String toString() => 'ContactNotFoundException: $message';
+}
+
 class ContactsService {
   /// Search contacts by name. Returns formatted results.
   Future<List<Contact>> searchContacts(String query) async {
     if (!await FlutterContacts.requestPermission()) {
-      return [];
+      throw PermissionDeniedException('Contacts permission denied. Please enable it in Settings.');
     }
 
     final contacts = await FlutterContacts.getContacts(
@@ -22,6 +36,9 @@ class ContactsService {
   Future<String?> getPhoneNumber(String contactName) async {
     final matches = await searchContacts(contactName);
     if (matches.isEmpty) return null;
+    if (matches.length > 1) {
+      throw ContactNotFoundException('Found multiple matches for "$contactName". Please be more specific.');
+    }
 
     final contact = matches.first;
     if (contact.phones.isEmpty) return null;

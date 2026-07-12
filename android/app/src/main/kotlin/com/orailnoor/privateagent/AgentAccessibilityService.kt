@@ -154,10 +154,17 @@ class AgentAccessibilityService : AccessibilityService() {
             // Click this node or its clickable parent
             var clickTarget: AccessibilityNodeInfo? = node
             while (clickTarget != null && !clickTarget.isClickable) {
-                clickTarget = clickTarget.parent
+                val nextParent = clickTarget.parent
+                if (clickTarget !== node) {
+                    clickTarget.recycle()
+                }
+                clickTarget = nextParent
             }
             if (clickTarget != null) {
                 val success = clickTarget.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (clickTarget !== node) {
+                    clickTarget.recycle()
+                }
                 return success
             }
         }
@@ -221,7 +228,12 @@ class AgentAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val found = findEditableNode(child, hint)
-            if (found != null) return found
+            if (found != null) {
+                if (child !== found) {
+                    child.recycle()
+                }
+                return found
+            }
             child.recycle()
         }
         return null
@@ -262,7 +274,12 @@ class AgentAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val found = findScrollableNode(child, targetText)
-            if (found != null) return found
+            if (found != null) {
+                if (child !== found) {
+                    child.recycle()
+                }
+                return found
+            }
             child.recycle()
         }
         return null

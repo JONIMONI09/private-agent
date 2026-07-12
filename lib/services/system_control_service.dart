@@ -1,6 +1,13 @@
 import 'package:volume_controller/volume_controller.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
+class SystemControlException implements Exception {
+  final String message;
+  SystemControlException(this.message);
+  @override
+  String toString() => 'SystemControlException: $message';
+}
+
 class SystemControlService {
   SystemControlService() {
     // Don't show system volume UI when we control it
@@ -14,7 +21,7 @@ class SystemControlService {
       VolumeController().setVolume(volume);
       return 'Volume set to $level%';
     } catch (e) {
-      return 'Error setting volume: $e';
+      throw SystemControlException('Error setting volume: $e');
     }
   }
 
@@ -24,7 +31,7 @@ class SystemControlService {
       final volume = await VolumeController().getVolume();
       return (volume * 100).round();
     } catch (e) {
-      return -1;
+      throw SystemControlException('Error getting volume: $e');
     }
   }
 
@@ -35,7 +42,7 @@ class SystemControlService {
       await ScreenBrightness().setScreenBrightness(brightness);
       return 'Brightness set to $level%';
     } catch (e) {
-      return 'Error setting brightness: $e';
+      throw SystemControlException('Error setting brightness: $e');
     }
   }
 
@@ -45,7 +52,7 @@ class SystemControlService {
       final brightness = await ScreenBrightness().current;
       return (brightness * 100).round();
     } catch (e) {
-      return -1;
+      throw SystemControlException('Error getting brightness: $e');
     }
   }
 }

@@ -8,9 +8,23 @@ The system operates on a continuous feedback loop:
 1. The user issues a command (via voice, text, or Telegram remote access).
 2. The agent captures the current screen hierarchy, calculating the exact spatial coordinates of all interactive elements.
 3. The layout data is transmitted to the AI provider alongside the current task context and the result of the previous action.
-4. The AI determines the next optimal action (e.g., clicking specific coordinates, inputting text, scrolling).
-5. The native Android layer executes the action.
-6. The loop repeats until the task is marked as complete.
+4. The AI processes the data internally using a mandatory `<thought>` block for chain-of-thought reasoning before outputting the action payload.
+5. The AI decides the next optimal action (e.g., clicking specific coordinates, inputting text, scrolling) in either **strict JSON** or **XML** format based on user configuration.
+6. The native Android layer parses the stateless message, executes the physical tap/scroll, and reports the result to the background loop.
+7. The loop repeats until the task is marked as complete.
+
+```mermaid
+flowchart TD
+    A[User Input] --> B(AiService)
+    B -->|Generates XML/JSON| C{ActionHandler}
+    C -->|Single Action| D[Native Services]
+    C -->|Execute Task| E[TaskExecutor]
+    E -->|Read Screen| F[Android Accessibility]
+    F -->|Screen Dump| B
+    E -->|Progress Update| G[Chat UI / PlanView]
+```
+
+To prevent token limits from exhausting during long tasks, an intelligent auto-compressor periodically summarizes the conversation history.
 
 ## Capabilities
 
